@@ -11,6 +11,7 @@ namespace Framework
             base.Configure(builder);
 
             RegisterModel(builder);
+            RegisterUI(builder);
             
             Debug.Log("[RootScope] Configure");
         }
@@ -19,6 +20,18 @@ namespace Framework
         {
             builder.Register<Test>(Lifetime.Singleton);
             builder.Register<Test2>(Lifetime.Singleton);
+        }
+
+        private void RegisterUI(IContainerBuilder builder)
+        {
+            var rootCanvasPrefab = RootCanvasSetting.Instance.RootCanvas;
+            if (rootCanvasPrefab == null)
+                return;
+
+            RootCanvas rootCanvas = Instantiate(rootCanvasPrefab);
+            rootCanvas.name = "[RootCanvas]";
+
+            builder.RegisterComponent(rootCanvas).As<RootCanvas>();
         }
     }
 }
