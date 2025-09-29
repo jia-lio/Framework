@@ -85,6 +85,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5416781765303459472}
   - component: {fileID: 684530897842831265}
+  - component: {fileID: 4594954712635470388}
   m_Layer: 0
   m_Name: TestPopup
   m_TagString: Untagged
@@ -124,3 +125,15 @@ CanvasGroup:
   m_Interactable: 1
   m_BlocksRaycasts: 1
   m_IgnoreParentGroups: 0
+--- !u!114 &4594954712635470388
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8373949558790018068}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d277b48eb87fb334b99a1a1bea0e075d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 

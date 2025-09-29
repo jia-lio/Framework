@@ -10,6 +10,8 @@ namespace Framework
         private void Start()
         {
             test2.AAA();
+
+            UISystem.Open<TestPopup>(Address.TESTPOPUP_PREFAB);
         }
     }
 }
