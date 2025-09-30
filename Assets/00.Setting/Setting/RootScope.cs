@@ -18,6 +18,9 @@ namespace Framework
 
         private void RegisterModel(IContainerBuilder builder)
         {
+            //builder.RegisterInstance();
+            builder.Register<RootManager>(Lifetime.Singleton).AsSelf();
+            
             builder.Register<Test>(Lifetime.Singleton);
             builder.Register<Test2>(Lifetime.Singleton);
         }
