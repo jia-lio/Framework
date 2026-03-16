@@ -12,15 +12,17 @@ namespace Framework
 
             RegisterModel(builder);
             RegisterUI(builder);
-            
+
             Debug.Log("[RootScope] Configure");
         }
 
         private void RegisterModel(IContainerBuilder builder)
         {
-            //builder.RegisterInstance();
-            builder.Register<RootManager>(Lifetime.Singleton).AsSelf();
-            
+            builder.Register<RootManager>(Lifetime.Singleton).AsSelf().As<IStartable>();
+            builder.Register<UIManager>(Lifetime.Singleton);
+            builder.Register<ToastManager>(Lifetime.Singleton);
+            builder.Register<SceneLoader>(Lifetime.Singleton);
+
             builder.Register<Test>(Lifetime.Singleton);
             builder.Register<Test2>(Lifetime.Singleton);
         }

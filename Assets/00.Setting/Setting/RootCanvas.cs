@@ -1,4 +1,5 @@
 using UnityEngine;
+using VContainer;
 
 namespace Framework
 {
@@ -6,11 +7,15 @@ namespace Framework
     public class RootCanvas : MonoBehaviour
     {
         public Transform root;
-        
-        private void Awake()
+        public Transform toastRoot;
+
+        [Inject] private UIManager _uiManager;
+        [Inject] private ToastManager _toastManager;
+
+        private void Start()
         {
-            UISystem.Initialize(root);
-            
+            _uiManager.Initialize(root);
+            _toastManager.Initialize(toastRoot);
             DontDestroyOnLoad(this);
         }
     }

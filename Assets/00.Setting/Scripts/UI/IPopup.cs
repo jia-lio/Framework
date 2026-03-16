@@ -1,8 +1,12 @@
+using Cysharp.Threading.Tasks;
+
 namespace Framework
 {
     public interface IPopup
     {
-        void Initialize();
-        void Dispose();
+        UniTask OnShow();
+        UniTask OnHide();
+        void OnEnter();
+        void OnExit();
     }
 }
