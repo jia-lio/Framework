@@ -15,6 +15,7 @@
 Assets/
 ├── 00.Setting/          # 프레임워크 코어
 │   ├── Scripts/
+│   │   ├── Data/        # SaveManager, SaveEncryption
 │   │   ├── UI/          # UIManager, PopupView, ToastManager, UIAnimation
 │   │   └── Scene/       # SceneLoader, LoadingScreen
 │   └── Setting/         # RootScope, RootCanvas, RootManager, RootCanvasSetting
