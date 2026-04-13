@@ -7,25 +7,24 @@ namespace Framework
     public class SceneLoader
     {
         private readonly UIManager _uiManager;
-        private bool _isTransitioning;
+        private readonly ObjectPoolManager _poolManager;
 
-        public bool IsTransitioning => _isTransitioning;
+        public bool IsTransitioning { get; private set; }
 
-        public SceneLoader(UIManager uiManager)
+        public SceneLoader(UIManager uiManager, ObjectPoolManager poolManager)
         {
             _uiManager = uiManager;
+            _poolManager = poolManager;
         }
 
         public async UniTask LoadScene(string sceneName, Scene outgoingScene = default)
         {
-            if (_isTransitioning) return;
-            _isTransitioning = true;
+            if (IsTransitioning) return;
+            IsTransitioning = true;
 
             try
             {
-                await _uiManager.CloseAll();
-
-                var currentScene = outgoingScene.IsValid() ? outgoingScene : SceneManager.GetActiveScene();
+                var currentScene = await PrepareTransition(outgoingScene);
 
                 var operation = SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Additive);
                 await operation.ToUniTask();
@@ -36,22 +35,20 @@ namespace Framework
             }
             finally
             {
-                _isTransitioning = false;
+                IsTransitioning = false;
             }
         }
 
         public async UniTask LoadScene(string sceneName, string loadingSceneName,
             Scene outgoingScene = default)
         {
-            if (_isTransitioning) return;
-            _isTransitioning = true;
+            if (IsTransitioning) return;
+            IsTransitioning = true;
 
             LoadingScreen loadingScreen = null;
             try
             {
-                await _uiManager.CloseAll();
-
-                var currentScene = outgoingScene.IsValid() ? outgoingScene : SceneManager.GetActiveScene();
+                var currentScene = await PrepareTransition(outgoingScene);
 
                 var loadingOperation = SceneManager.LoadSceneAsync(loadingSceneName, LoadSceneMode.Additive);
                 await loadingOperation.ToUniTask();
@@ -69,10 +66,17 @@ namespace Framework
             }
             finally
             {
-                _isTransitioning = false;
+                IsTransitioning = false;
             }
 
             CleanupLoadingScene(loadingScreen, loadingSceneName).Forget();
+        }
+
+        private async UniTask<Scene> PrepareTransition(Scene outgoingScene)
+        {
+            await _uiManager.CloseAll();
+            _poolManager.ReleaseAll();
+            return outgoingScene.IsValid() ? outgoingScene : SceneManager.GetActiveScene();
         }
 
         private async UniTask CleanupLoadingScene(LoadingScreen loadingScreen, string loadingSceneName)

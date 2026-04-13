@@ -22,6 +22,7 @@ namespace Framework
             builder.Register<UIManager>(Lifetime.Singleton);
             builder.Register<ToastManager>(Lifetime.Singleton);
             builder.Register<SceneLoader>(Lifetime.Singleton);
+            builder.Register<ObjectPoolManager>(Lifetime.Singleton);
             builder.Register<SaveManager<SaveData>>(Lifetime.Singleton);
             builder.Register<SaveDataInitializer>(Lifetime.Singleton).As<IInitializable>();
 

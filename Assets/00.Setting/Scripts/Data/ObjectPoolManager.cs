@@ -1,0 +1,179 @@
+using System;
+using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
+using UnityEngine;
+using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
+using VContainer;
+using VContainer.Unity;
+
+namespace Framework
+{
+    public class ObjectPoolManager
+    {
+        private readonly IObjectResolver _resolver;
+        private readonly Dictionary<string, Queue<GameObject>> _pools = new();
+        private readonly Dictionary<string, AsyncOperationHandle<GameObject>> _handles = new();
+        private readonly Dictionary<string, GameObject> _prefabs = new();
+        private readonly Dictionary<GameObject, string> _instanceToKey = new();
+        private readonly HashSet<string> _loading = new();
+        private readonly HashSet<string> _failed = new();
+
+        private Transform _poolRoot;
+
+        public ObjectPoolManager(IObjectResolver resolver)
+        {
+            _resolver = resolver;
+        }
+
+        public void Initialize(Transform root)
+        {
+            _poolRoot = root;
+        }
+
+        public async UniTask Preload(string key, int count)
+        {
+            await LoadPrefab(key);
+
+            var queue = GetOrCreateQueue(key);
+            var prefab = _prefabs[key];
+
+            for (var i = 0; i < count; i++)
+                queue.Enqueue(CreateInstance(key, prefab));
+        }
+
+        public async UniTask<T> Spawn<T>(string key, Transform parent = null) where T : Component
+        {
+            var queue = GetOrCreateQueue(key);
+
+            GameObject go = null;
+            while (queue.Count > 0)
+            {
+                var candidate = queue.Dequeue();
+                if (candidate != null)
+                {
+                    go = candidate;
+                    break;
+                }
+                if (!ReferenceEquals(candidate, null))
+                    _instanceToKey.Remove(candidate);
+            }
+
+            if (go == null)
+            {
+                await LoadPrefab(key);
+                go = CreateInstance(key, _prefabs[key]);
+            }
+
+            var component = go.GetComponent<T>();
+            if (component == null)
+            {
+                GetOrCreateQueue(key).Enqueue(go);
+                throw new InvalidOperationException(
+                    $"[ObjectPoolManager] Prefab '{key}' does not contain component '{typeof(T).Name}'.");
+            }
+
+            if (parent != null)
+                go.transform.SetParent(parent);
+
+            go.SetActive(true);
+            go.GetComponent<IPoolable>()?.OnSpawn();
+
+            return component;
+        }
+
+        public void Despawn(GameObject go)
+        {
+            if (go == null) return;
+
+            if (!_instanceToKey.TryGetValue(go, out var key))
+            {
+                Debug.LogWarning($"[ObjectPoolManager] Despawn called on untracked GameObject '{go.name}'.");
+                return;
+            }
+
+            go.GetComponent<IPoolable>()?.OnDespawn();
+            go.SetActive(false);
+            go.transform.SetParent(_poolRoot);
+
+            GetOrCreateQueue(key).Enqueue(go);
+        }
+
+        public void ReleaseAll()
+        {
+            _pools.Clear();
+
+            foreach (var kvp in _instanceToKey)
+            {
+                var go = kvp.Key;
+                if (go == null) continue;
+
+                go.GetComponent<IPoolable>()?.OnDespawn();
+                UnityEngine.Object.Destroy(go);
+            }
+            _instanceToKey.Clear();
+
+            _prefabs.Clear();
+            _loading.Clear();
+            _failed.Clear();
+
+            foreach (var kvp in _handles)
+                Addressables.Release(kvp.Value);
+            _handles.Clear();
+        }
+
+        private Queue<GameObject> GetOrCreateQueue(string key)
+        {
+            if (!_pools.TryGetValue(key, out var queue))
+            {
+                queue = new Queue<GameObject>();
+                _pools[key] = queue;
+            }
+            return queue;
+        }
+
+        private GameObject CreateInstance(string key, GameObject prefab)
+        {
+            if (_poolRoot == null)
+                throw new InvalidOperationException("[ObjectPoolManager] Initialize() must be called before use.");
+
+            var go = UnityEngine.Object.Instantiate(prefab, _poolRoot);
+            go.SetActive(false);
+            _resolver.InjectGameObject(go);
+            _instanceToKey[go] = key;
+            return go;
+        }
+
+        private async UniTask LoadPrefab(string key)
+        {
+            if (_prefabs.ContainsKey(key)) return;
+
+            if (_loading.Contains(key))
+            {
+                await UniTask.WaitUntil(() => _prefabs.ContainsKey(key) || _failed.Contains(key));
+                if (_failed.Contains(key))
+                    throw new InvalidOperationException($"[ObjectPoolManager] Failed to load '{key}'.");
+                return;
+            }
+
+            _failed.Remove(key);
+            _loading.Add(key);
+            try
+            {
+                var handle = Addressables.LoadAssetAsync<GameObject>(key);
+                var prefab = await handle;
+                _prefabs[key] = prefab;
+                _handles[key] = handle;
+            }
+            catch
+            {
+                _failed.Add(key);
+                throw;
+            }
+            finally
+            {
+                _loading.Remove(key);
+            }
+        }
+    }
+}
