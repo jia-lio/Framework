@@ -13,3 +13,4 @@ MonoBehaviour:
   m_Name: RootCanvasSettings
   m_EditorClassIdentifier: 
   RootCanvas: {fileID: 2990289905652273647, guid: 3968cc6f0b74e5640bb80e39f13f7961, type: 3}
+  InputActions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
