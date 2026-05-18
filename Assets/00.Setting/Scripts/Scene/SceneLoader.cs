@@ -9,20 +9,23 @@ namespace Framework
         private readonly UIManager _uiManager;
         private readonly ObjectPoolManager _poolManager;
         private readonly IEventBus _eventBus;
+        private readonly IInputManager _inputManager;
 
         public bool IsTransitioning { get; private set; }
 
-        public SceneLoader(UIManager uiManager, ObjectPoolManager poolManager, IEventBus eventBus)
+        public SceneLoader(UIManager uiManager, ObjectPoolManager poolManager, IEventBus eventBus, IInputManager inputManager)
         {
             _uiManager = uiManager;
             _poolManager = poolManager;
             _eventBus = eventBus;
+            _inputManager = inputManager;
         }
 
         public async UniTask LoadScene(string sceneName, Scene outgoingScene = default)
         {
             if (IsTransitioning) return;
             IsTransitioning = true;
+            using var _ = _inputManager.AcquireLock();
 
             try
             {
@@ -48,6 +51,7 @@ namespace Framework
         {
             if (IsTransitioning) return;
             IsTransitioning = true;
+            using var _ = _inputManager.AcquireLock();
 
             LoadingScreen loadingScreen = null;
             try

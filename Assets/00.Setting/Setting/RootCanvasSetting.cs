@@ -1,5 +1,6 @@
 using System.Linq;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace Framework
 {
@@ -8,6 +9,7 @@ namespace Framework
         public static RootCanvasSetting Instance { get; private set; }
 
         public RootCanvas RootCanvas;
+        public InputActionAsset InputActions;
         
 #if UNITY_EDITOR
         [UnityEditor.MenuItem("Assets/Create/Setting/Root Canvas Setting")]

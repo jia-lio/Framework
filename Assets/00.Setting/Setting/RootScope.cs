@@ -28,6 +28,12 @@ namespace Framework
             builder.Register<SaveManager<SaveData>>(Lifetime.Singleton);
             builder.Register<SaveDataInitializer>(Lifetime.Singleton).As<IInitializable>();
 
+            var inputActions = RootCanvasSetting.Instance?.InputActions;
+            builder.Register<InputManager>(c =>
+                    new InputManager(inputActions, c.Resolve<IEventBus>()),
+                    Lifetime.Singleton)
+                .AsSelf().As<IInputManager>().As<IInitializable>();
+
             builder.Register<Test>(Lifetime.Singleton);
             builder.Register<Test2>(Lifetime.Singleton);
         }

@@ -20,6 +20,7 @@ namespace Framework
         private readonly HashSet<string> _failed = new();
 
         private Transform _uiRoot;
+        private IDisposable _cancelSub;
         private bool _isClosing;
         private bool _isOpening;
 
@@ -35,6 +36,8 @@ namespace Framework
         public void Initialize(Transform root)
         {
             _uiRoot = root;
+            _cancelSub?.Dispose();
+            _cancelSub = _eventBus.Subscribe<UICancelEvent>(_ => Back().Forget());
         }
 
         public async UniTask<T> Open<T>(string key, Action<T> setup = null) where T : PopupView
@@ -159,6 +162,8 @@ namespace Framework
 
         public void ReleaseAll()
         {
+            _cancelSub?.Dispose();
+            _cancelSub = null;
             _popupStack.Clear();
             _loading.Clear();
             _failed.Clear();
