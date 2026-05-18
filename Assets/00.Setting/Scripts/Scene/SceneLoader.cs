@@ -8,13 +8,15 @@ namespace Framework
     {
         private readonly UIManager _uiManager;
         private readonly ObjectPoolManager _poolManager;
+        private readonly IEventBus _eventBus;
 
         public bool IsTransitioning { get; private set; }
 
-        public SceneLoader(UIManager uiManager, ObjectPoolManager poolManager)
+        public SceneLoader(UIManager uiManager, ObjectPoolManager poolManager, IEventBus eventBus)
         {
             _uiManager = uiManager;
             _poolManager = poolManager;
+            _eventBus = eventBus;
         }
 
         public async UniTask LoadScene(string sceneName, Scene outgoingScene = default)
@@ -32,6 +34,8 @@ namespace Framework
                 SceneManager.SetActiveScene(SceneManager.GetSceneByName(sceneName));
 
                 await SceneManager.UnloadSceneAsync(currentScene);
+
+                _eventBus.Publish(new SceneLoadedEvent(sceneName));
             }
             finally
             {
@@ -63,6 +67,8 @@ namespace Framework
                 await operation.ToUniTask();
 
                 SceneManager.SetActiveScene(SceneManager.GetSceneByName(sceneName));
+
+                _eventBus.Publish(new SceneLoadedEvent(sceneName));
             }
             finally
             {

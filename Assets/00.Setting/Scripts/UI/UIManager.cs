@@ -12,6 +12,7 @@ namespace Framework
     public class UIManager
     {
         private readonly IObjectResolver _resolver;
+        private readonly IEventBus _eventBus;
         private readonly Dictionary<string, GameObject> _cache = new();
         private readonly Dictionary<string, AsyncOperationHandle<GameObject>> _handles = new();
         private readonly Stack<PopupView> _popupStack = new();
@@ -25,9 +26,10 @@ namespace Framework
         public int PopupCount => _popupStack.Count;
         public bool HasPopup => _popupStack.Count > 0;
 
-        public UIManager(IObjectResolver resolver)
+        public UIManager(IObjectResolver resolver, IEventBus eventBus)
         {
             _resolver = resolver;
+            _eventBus = eventBus;
         }
 
         public void Initialize(Transform root)
@@ -124,10 +126,7 @@ namespace Framework
             try
             {
                 var popup = _popupStack.Pop();
-                popup.CanvasGroup.interactable = false;
-                popup.OnExit();
-                await popup.OnHide();
-                popup.gameObject.SetActive(false);
+                await ClosePopup(popup);
 
                 if (_popupStack.TryPeek(out var next) && next != null)
                     next.CanvasGroup.interactable = true;
@@ -144,11 +143,18 @@ namespace Framework
             {
                 var popup = _popupStack.Pop();
                 if (popup == null) continue;
-                popup.CanvasGroup.interactable = false;
-                popup.OnExit();
-                await popup.OnHide();
-                popup.gameObject.SetActive(false);
+                await ClosePopup(popup);
             }
+        }
+
+        private async UniTask ClosePopup(PopupView popup)
+        {
+            popup.CanvasGroup.interactable = false;
+            popup.OnExit();
+            await popup.OnHide();
+            popup.gameObject.SetActive(false);
+
+            _eventBus.Publish(new PopupClosedEvent(popup));
         }
 
         public void ReleaseAll()
