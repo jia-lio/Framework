@@ -11,7 +11,8 @@ namespace Framework
 {
     public class AudioManager
     {
-        private readonly SaveManager<SaveData> _saveManager;
+        private readonly IEventBus _eventBus;
+        private readonly ISettingsManager _settingsManager;
 
         private readonly Dictionary<string, AudioClip> _clips = new();
         private readonly Dictionary<string, AsyncOperationHandle<AudioClip>> _handles = new();
@@ -39,43 +40,17 @@ namespace Framework
         private int _generation;
         private CancellationTokenSource _releaseCts = new();
 
-        public float MasterVolume
+        public float MasterVolume => _masterVolume;
+        public float BgmVolume => _bgmVolume;
+        public float SfxVolume => _sfxVolume;
+
+        public AudioManager(IEventBus eventBus, ISettingsManager settingsManager)
         {
-            get => _masterVolume;
-            set
-            {
-                _masterVolume = Mathf.Clamp01(value);
-                ApplyBgmVolumes();
-                ApplySfxVolumes();
-            }
+            _eventBus = eventBus;
+            _settingsManager = settingsManager;
         }
 
-        public float BgmVolume
-        {
-            get => _bgmVolume;
-            set
-            {
-                _bgmVolume = Mathf.Clamp01(value);
-                ApplyBgmVolumes();
-            }
-        }
-
-        public float SfxVolume
-        {
-            get => _sfxVolume;
-            set
-            {
-                _sfxVolume = Mathf.Clamp01(value);
-                ApplySfxVolumes();
-            }
-        }
-
-        public AudioManager(SaveManager<SaveData> saveManager)
-        {
-            _saveManager = saveManager;
-        }
-
-        public void Initialize(Transform root, SaveData saveData)
+        public void Initialize(Transform root)
         {
             if (_isInitialized)
             {
@@ -95,47 +70,21 @@ namespace Framework
             sfxGo.transform.SetParent(root, false);
             _sfxRoot = sfxGo.transform;
 
-            if (saveData != null && saveData.HasAudioSettings)
-            {
-                _masterVolume = Mathf.Clamp01(saveData.MasterVolume);
-                _bgmVolume = Mathf.Clamp01(saveData.BgmVolume);
-                _sfxVolume = Mathf.Clamp01(saveData.SfxVolume);
-            }
-            else
-            {
-                _masterVolume = 1f;
-                _bgmVolume = 1f;
-                _sfxVolume = 1f;
-                if (saveData != null)
-                {
-                    saveData.MasterVolume = 1f;
-                    saveData.BgmVolume = 1f;
-                    saveData.SfxVolume = 1f;
-                    saveData.HasAudioSettings = true;
-                }
-            }
-
+            _eventBus.Subscribe<AudioVolumeChangedEvent>(OnVolumeChanged);
+            ApplyVolumes(_settingsManager.MasterVolume, _settingsManager.BgmVolume, _settingsManager.SfxVolume);
             _isInitialized = true;
         }
 
-        public void SaveVolumes()
+        private void OnVolumeChanged(AudioVolumeChangedEvent e)
+            => ApplyVolumes(e.Master, e.Bgm, e.Sfx);
+
+        private void ApplyVolumes(float master, float bgm, float sfx)
         {
-            if (!_isInitialized)
-            {
-                Debug.LogWarning("[AudioManager] SaveVolumes rejected: not initialized.");
-                return;
-            }
-            var data = _saveManager.Data;
-            if (data == null)
-            {
-                Debug.LogWarning("[AudioManager] SaveVolumes rejected: SaveData null.");
-                return;
-            }
-            data.MasterVolume = _masterVolume;
-            data.BgmVolume = _bgmVolume;
-            data.SfxVolume = _sfxVolume;
-            data.HasAudioSettings = true;
-            _saveManager.Save().Forget();
+            _masterVolume = Mathf.Clamp01(master);
+            _bgmVolume = Mathf.Clamp01(bgm);
+            _sfxVolume = Mathf.Clamp01(sfx);
+            ApplyBgmVolumes();
+            ApplySfxVolumes();
         }
 
         public async UniTask PlayBgm(string key, float fadeDuration = 1f, bool loop = true, CancellationToken ct = default)

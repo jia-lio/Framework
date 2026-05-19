@@ -17,6 +17,7 @@ namespace Framework
         [Inject] private ObjectPoolManager _poolManager;
         [Inject] private AudioManager _audioManager;
         [Inject] private SaveManager<SaveData> _saveManager;
+        [Inject] private ISettingsManager _settingsManager;
 
         private void Start()
         {
@@ -39,7 +40,8 @@ namespace Framework
         private async UniTaskVoid InitializeAudioAsync()
         {
             await _saveManager.Load();
-            _audioManager.Initialize(audioRoot, _saveManager.Data);
+            _audioManager.Initialize(audioRoot);
+            _settingsManager.ApplyFromSaveData();
         }
     }
 }

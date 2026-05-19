@@ -24,6 +24,9 @@ namespace Framework
             builder.Register<SceneLoader>(Lifetime.Singleton);
             builder.Register<ObjectPoolManager>(Lifetime.Singleton);
             builder.Register<AudioManager>(Lifetime.Singleton);
+            builder.Register<SettingsManager>(Lifetime.Singleton)
+                .AsSelf()
+                .As<ISettingsManager>();
             builder.Register<IEventBus, EventBus>(Lifetime.Singleton);
             builder.Register<SaveManager<SaveData>>(Lifetime.Singleton);
             builder.Register<SaveDataInitializer>(Lifetime.Singleton).As<IInitializable>();
