@@ -11,13 +11,13 @@ namespace Framework
             CancellationToken ct = default)
         {
             canvasGroup.alpha = 0f;
-            await canvasGroup.DOFade(1f, duration).WithCancellation(ct);
+            await canvasGroup.DOFade(1f, duration).SetUpdate(true).WithCancellation(ct);
         }
 
         public static async UniTask FadeOut(CanvasGroup canvasGroup, float duration = 0.3f,
             CancellationToken ct = default)
         {
-            await canvasGroup.DOFade(0f, duration).WithCancellation(ct);
+            await canvasGroup.DOFade(0f, duration).SetUpdate(true).WithCancellation(ct);
         }
 
         public static async UniTask ScaleIn(Transform transform, float duration = 0.3f,
@@ -25,14 +25,14 @@ namespace Framework
         {
             transform.localScale = Vector3.zero;
             await transform.DOScale(Vector3.one, duration).SetEase(Ease.OutBack)
-                .WithCancellation(ct);
+                .SetUpdate(true).WithCancellation(ct);
         }
 
         public static async UniTask ScaleOut(Transform transform, float duration = 0.2f,
             CancellationToken ct = default)
         {
             await transform.DOScale(Vector3.zero, duration).SetEase(Ease.InBack)
-                .WithCancellation(ct);
+                .SetUpdate(true).WithCancellation(ct);
         }
 
         public static async UniTask PopIn(CanvasGroup canvasGroup, float duration = 0.3f,

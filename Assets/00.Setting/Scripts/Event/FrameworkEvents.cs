@@ -11,4 +11,8 @@ namespace Framework
         public readonly PopupView Popup;
         public PopupClosedEvent(PopupView popup) => Popup = popup;
     }
+
+    public readonly struct GamePausedEvent { }
+
+    public readonly struct GameResumedEvent { }
 }

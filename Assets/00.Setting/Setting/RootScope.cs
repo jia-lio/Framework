@@ -34,6 +34,9 @@ namespace Framework
                     Lifetime.Singleton)
                 .AsSelf().As<IInputManager>().As<IInitializable>();
 
+            builder.Register<PauseService>(Lifetime.Singleton)
+                .AsSelf().As<IPauseService>();
+
             builder.Register<Test>(Lifetime.Singleton);
             builder.Register<Test2>(Lifetime.Singleton);
         }
