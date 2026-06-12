@@ -10,6 +10,7 @@ namespace Framework
 
         private async void Start()
         {
+            DebugLog.Log("test view init");
             test2.AAA();
             await _sceneLoader.LoadScene("Test2Scene");
         }

@@ -42,6 +42,12 @@ namespace Framework
 
             builder.Register<Test>(Lifetime.Singleton);
             builder.Register<Test2>(Lifetime.Singleton);
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            builder.Register<DebugLogCapture>(Lifetime.Singleton);
+            builder.Register<DebugManager>(Lifetime.Singleton)
+                .AsSelf().As<IInitializable>();
+#endif
         }
 
         private void RegisterUI(IContainerBuilder builder)
@@ -54,6 +60,18 @@ namespace Framework
             rootCanvas.name = "[RootCanvas]";
 
             builder.RegisterComponent(rootCanvas).As<RootCanvas>();
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            var hudGo = new GameObject("[DebugHud]");
+            DontDestroyOnLoad(hudGo);
+            var hud = hudGo.AddComponent<DebugHud>();
+            builder.RegisterComponent(hud).As<DebugHud>();
+
+            var logPanelGo = new GameObject("[DebugLogPanel]");
+            DontDestroyOnLoad(logPanelGo);
+            var logPanel = logPanelGo.AddComponent<DebugLogPanel>();
+            builder.RegisterComponent(logPanel).As<DebugLogPanel>();
+#endif
         }
     }
 }
