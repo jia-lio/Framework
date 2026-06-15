@@ -10,9 +10,8 @@ namespace Framework
     public class ObjectPoolManager : IDisposable
     {
         private readonly IObjectResolver _resolver;
-        private readonly ResourceManager _resources;
+        private readonly ResourceCache<GameObject> _prefabs;
         private readonly Dictionary<string, Queue<GameObject>> _pools = new();
-        private readonly Dictionary<string, ResourceHandle<GameObject>> _prefabHandles = new();
         private readonly Dictionary<GameObject, string> _instanceToKey = new();
 
         private Transform _poolRoot;
@@ -20,7 +19,7 @@ namespace Framework
         public ObjectPoolManager(IObjectResolver resolver, ResourceManager resources)
         {
             _resolver = resolver;
-            _resources = resources;
+            _prefabs = new ResourceCache<GameObject>(resources);
         }
 
         public void Initialize(Transform root)
@@ -30,7 +29,7 @@ namespace Framework
 
         public async UniTask Preload(string key, int count)
         {
-            var prefab = await LoadPrefab(key);
+            var prefab = await _prefabs.Load(key);
 
             var queue = GetOrCreateQueue(key);
             for (var i = 0; i < count; i++)
@@ -55,7 +54,7 @@ namespace Framework
             }
 
             if (go == null)
-                go = CreateInstance(key, await LoadPrefab(key));
+                go = CreateInstance(key, await _prefabs.Load(key));
 
             var component = go.GetComponent<T>();
             if (component == null)
@@ -105,9 +104,7 @@ namespace Framework
             }
             _instanceToKey.Clear();
 
-            foreach (var kvp in _prefabHandles)
-                kvp.Value.Dispose();
-            _prefabHandles.Clear();
+            _prefabs.ReleaseAll();
         }
 
         public void Dispose() => ReleaseAll();
@@ -132,21 +129,6 @@ namespace Framework
             _resolver.InjectGameObject(go);
             _instanceToKey[go] = key;
             return go;
-        }
-
-        private async UniTask<GameObject> LoadPrefab(string key)
-        {
-            if (_prefabHandles.TryGetValue(key, out var existing))
-                return existing.Asset;
-
-            var handle = await _resources.Load<GameObject>(key);
-            if (_prefabHandles.TryGetValue(key, out var raced))
-            {
-                handle.Dispose();
-                return raced.Asset;
-            }
-            _prefabHandles[key] = handle;
-            return handle.Asset;
         }
     }
 }

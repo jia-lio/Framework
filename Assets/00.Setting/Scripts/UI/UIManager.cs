@@ -11,9 +11,8 @@ namespace Framework
     {
         private readonly IObjectResolver _resolver;
         private readonly IEventBus _eventBus;
-        private readonly ResourceManager _resources;
+        private readonly ResourceCache<GameObject> _prefabs;
         private readonly Dictionary<string, GameObject> _cache = new();
-        private readonly Dictionary<string, ResourceHandle<GameObject>> _prefabHandles = new();
         private readonly Stack<PopupView> _popupStack = new();
 
         private Transform _uiRoot;
@@ -28,7 +27,7 @@ namespace Framework
         {
             _resolver = resolver;
             _eventBus = eventBus;
-            _resources = resources;
+            _prefabs = new ResourceCache<GameObject>(resources);
         }
 
         public void Initialize(Transform root)
@@ -61,7 +60,7 @@ namespace Framework
         {
             if (!_cache.TryGetValue(key, out var go))
             {
-                var prefab = await LoadPrefab(key);
+                var prefab = await _prefabs.Load(key);
                 go = UnityEngine.Object.Instantiate(prefab, _uiRoot);
                 go.name = key;
                 go.SetActive(false);
@@ -145,26 +144,9 @@ namespace Framework
                     UnityEngine.Object.Destroy(kvp.Value);
             _cache.Clear();
 
-            foreach (var kvp in _prefabHandles)
-                kvp.Value.Dispose();
-            _prefabHandles.Clear();
+            _prefabs.ReleaseAll();
         }
 
         public void Dispose() => ReleaseAll();
-
-        private async UniTask<GameObject> LoadPrefab(string key)
-        {
-            if (_prefabHandles.TryGetValue(key, out var existing))
-                return existing.Asset;
-
-            var handle = await _resources.Load<GameObject>(key);
-            if (_prefabHandles.TryGetValue(key, out var raced))
-            {
-                handle.Dispose();
-                return raced.Asset;
-            }
-            _prefabHandles[key] = handle;
-            return handle.Asset;
-        }
     }
 }
