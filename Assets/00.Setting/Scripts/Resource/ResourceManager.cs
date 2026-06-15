@@ -71,6 +71,19 @@ namespace Framework
         {
             if (_disposed) return;
             if (!_entries.TryGetValue(key, out var entry)) return;
+
+            // 로드 실패/무효 entry는 refcount 무시하고 즉시 제거 —
+            // 잔존 시 늦게 await 진입한 caller가 faulted handle을 재관찰·재증가하는 fragile race 방지.
+            // 순서 주의: IsValid()가 반드시 먼저. invalid handle에서 .Status는 예외를 던진다.
+            bool faulted = !entry.Handle.IsValid() ||
+                           (entry.Handle.IsDone && entry.Handle.Status != AsyncOperationStatus.Succeeded);
+            if (faulted)
+            {
+                _entries.Remove(key);
+                if (entry.Handle.IsValid()) Addressables.Release(entry.Handle);
+                return;
+            }
+
             entry.RefCount--;
             if (entry.RefCount > 0) return;
             _entries.Remove(key);
