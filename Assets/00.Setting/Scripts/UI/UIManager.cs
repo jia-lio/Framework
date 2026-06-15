@@ -2,22 +2,19 @@ using System;
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
-using UnityEngine.ResourceManagement.AsyncOperations;
 using VContainer;
 using VContainer.Unity;
 
 namespace Framework
 {
-    public class UIManager
+    public class UIManager : IDisposable
     {
         private readonly IObjectResolver _resolver;
         private readonly IEventBus _eventBus;
+        private readonly ResourceManager _resources;
         private readonly Dictionary<string, GameObject> _cache = new();
-        private readonly Dictionary<string, AsyncOperationHandle<GameObject>> _handles = new();
+        private readonly Dictionary<string, ResourceHandle<GameObject>> _prefabHandles = new();
         private readonly Stack<PopupView> _popupStack = new();
-        private readonly HashSet<string> _loading = new();
-        private readonly HashSet<string> _failed = new();
 
         private Transform _uiRoot;
         private IDisposable _cancelSub;
@@ -27,10 +24,11 @@ namespace Framework
         public int PopupCount => _popupStack.Count;
         public bool HasPopup => _popupStack.Count > 0;
 
-        public UIManager(IObjectResolver resolver, IEventBus eventBus)
+        public UIManager(IObjectResolver resolver, IEventBus eventBus, ResourceManager resources)
         {
             _resolver = resolver;
             _eventBus = eventBus;
+            _resources = resources;
         }
 
         public void Initialize(Transform root)
@@ -63,38 +61,12 @@ namespace Framework
         {
             if (!_cache.TryGetValue(key, out var go))
             {
-                if (_loading.Contains(key))
-                {
-                    await UniTask.WaitUntil(() => _cache.ContainsKey(key) || _failed.Contains(key));
-                    if (_failed.Contains(key))
-                        throw new InvalidOperationException($"[UIManager] Failed to load '{key}'.");
-                    go = _cache[key];
-                }
-                else
-                {
-                    _failed.Remove(key);
-                    _loading.Add(key);
-                    try
-                    {
-                        var handle = Addressables.LoadAssetAsync<GameObject>(key);
-                        var prefab = await handle;
-                        go = UnityEngine.Object.Instantiate(prefab, _uiRoot);
-                        go.name = key;
-                        go.SetActive(false);
-                        _resolver.InjectGameObject(go);
-                        _cache[key] = go;
-                        _handles[key] = handle;
-                    }
-                    catch
-                    {
-                        _failed.Add(key);
-                        throw;
-                    }
-                    finally
-                    {
-                        _loading.Remove(key);
-                    }
-                }
+                var prefab = await LoadPrefab(key);
+                go = UnityEngine.Object.Instantiate(prefab, _uiRoot);
+                go.name = key;
+                go.SetActive(false);
+                _resolver.InjectGameObject(go);
+                _cache[key] = go;
             }
 
             var popup = go.GetComponent<T>();
@@ -165,8 +137,6 @@ namespace Framework
             _cancelSub?.Dispose();
             _cancelSub = null;
             _popupStack.Clear();
-            _loading.Clear();
-            _failed.Clear();
             _isOpening = false;
             _isClosing = false;
 
@@ -175,9 +145,26 @@ namespace Framework
                     UnityEngine.Object.Destroy(kvp.Value);
             _cache.Clear();
 
-            foreach (var kvp in _handles)
-                Addressables.Release(kvp.Value);
-            _handles.Clear();
+            foreach (var kvp in _prefabHandles)
+                kvp.Value.Dispose();
+            _prefabHandles.Clear();
+        }
+
+        public void Dispose() => ReleaseAll();
+
+        private async UniTask<GameObject> LoadPrefab(string key)
+        {
+            if (_prefabHandles.TryGetValue(key, out var existing))
+                return existing.Asset;
+
+            var handle = await _resources.Load<GameObject>(key);
+            if (_prefabHandles.TryGetValue(key, out var raced))
+            {
+                handle.Dispose();
+                return raced.Asset;
+            }
+            _prefabHandles[key] = handle;
+            return handle.Asset;
         }
     }
 }

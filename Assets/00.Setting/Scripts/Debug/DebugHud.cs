@@ -17,6 +17,7 @@ namespace Framework
         [Inject] private AudioManager _audio;
         [Inject] private IPauseService _pause;
         [Inject] private IInputManager _input;
+        [Inject] private ResourceManager _resources;
 
         private float _fps;
         private float _fpsAccum;
@@ -74,6 +75,8 @@ namespace Framework
                 GUILayout.Label($"Paused: {_pause.IsPaused} (cnt={_pause.PauseCount})", _labelStyle);
             if (_input != null)
                 GUILayout.Label($"InputLocked: {_input.IsLocked}", _labelStyle);
+            if (_resources != null)
+                GUILayout.Label($"Resources: {_resources.LoadedCount}", _labelStyle);
         }
 
         private void EnsureStyles()

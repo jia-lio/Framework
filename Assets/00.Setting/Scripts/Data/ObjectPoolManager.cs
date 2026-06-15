@@ -2,28 +2,25 @@ using System;
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
-using UnityEngine.ResourceManagement.AsyncOperations;
 using VContainer;
 using VContainer.Unity;
 
 namespace Framework
 {
-    public class ObjectPoolManager
+    public class ObjectPoolManager : IDisposable
     {
         private readonly IObjectResolver _resolver;
+        private readonly ResourceManager _resources;
         private readonly Dictionary<string, Queue<GameObject>> _pools = new();
-        private readonly Dictionary<string, AsyncOperationHandle<GameObject>> _handles = new();
-        private readonly Dictionary<string, GameObject> _prefabs = new();
+        private readonly Dictionary<string, ResourceHandle<GameObject>> _prefabHandles = new();
         private readonly Dictionary<GameObject, string> _instanceToKey = new();
-        private readonly HashSet<string> _loading = new();
-        private readonly HashSet<string> _failed = new();
 
         private Transform _poolRoot;
 
-        public ObjectPoolManager(IObjectResolver resolver)
+        public ObjectPoolManager(IObjectResolver resolver, ResourceManager resources)
         {
             _resolver = resolver;
+            _resources = resources;
         }
 
         public void Initialize(Transform root)
@@ -33,11 +30,9 @@ namespace Framework
 
         public async UniTask Preload(string key, int count)
         {
-            await LoadPrefab(key);
+            var prefab = await LoadPrefab(key);
 
             var queue = GetOrCreateQueue(key);
-            var prefab = _prefabs[key];
-
             for (var i = 0; i < count; i++)
                 queue.Enqueue(CreateInstance(key, prefab));
         }
@@ -60,10 +55,7 @@ namespace Framework
             }
 
             if (go == null)
-            {
-                await LoadPrefab(key);
-                go = CreateInstance(key, _prefabs[key]);
-            }
+                go = CreateInstance(key, await LoadPrefab(key));
 
             var component = go.GetComponent<T>();
             if (component == null)
@@ -113,14 +105,12 @@ namespace Framework
             }
             _instanceToKey.Clear();
 
-            _prefabs.Clear();
-            _loading.Clear();
-            _failed.Clear();
-
-            foreach (var kvp in _handles)
-                Addressables.Release(kvp.Value);
-            _handles.Clear();
+            foreach (var kvp in _prefabHandles)
+                kvp.Value.Dispose();
+            _prefabHandles.Clear();
         }
+
+        public void Dispose() => ReleaseAll();
 
         private Queue<GameObject> GetOrCreateQueue(string key)
         {
@@ -144,36 +134,19 @@ namespace Framework
             return go;
         }
 
-        private async UniTask LoadPrefab(string key)
+        private async UniTask<GameObject> LoadPrefab(string key)
         {
-            if (_prefabs.ContainsKey(key)) return;
+            if (_prefabHandles.TryGetValue(key, out var existing))
+                return existing.Asset;
 
-            if (_loading.Contains(key))
+            var handle = await _resources.Load<GameObject>(key);
+            if (_prefabHandles.TryGetValue(key, out var raced))
             {
-                await UniTask.WaitUntil(() => _prefabs.ContainsKey(key) || _failed.Contains(key));
-                if (_failed.Contains(key))
-                    throw new InvalidOperationException($"[ObjectPoolManager] Failed to load '{key}'.");
-                return;
+                handle.Dispose();
+                return raced.Asset;
             }
-
-            _failed.Remove(key);
-            _loading.Add(key);
-            try
-            {
-                var handle = Addressables.LoadAssetAsync<GameObject>(key);
-                var prefab = await handle;
-                _prefabs[key] = prefab;
-                _handles[key] = handle;
-            }
-            catch
-            {
-                _failed.Add(key);
-                throw;
-            }
-            finally
-            {
-                _loading.Remove(key);
-            }
+            _prefabHandles[key] = handle;
+            return handle.Asset;
         }
     }
 }

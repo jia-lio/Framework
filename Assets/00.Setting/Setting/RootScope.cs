@@ -19,6 +19,7 @@ namespace Framework
         private void RegisterModel(IContainerBuilder builder)
         {
             builder.Register<RootManager>(Lifetime.Singleton).AsSelf().As<IStartable>();
+            builder.Register<ResourceManager>(Lifetime.Singleton);
             builder.Register<UIManager>(Lifetime.Singleton);
             builder.Register<ToastManager>(Lifetime.Singleton);
             builder.Register<SceneLoader>(Lifetime.Singleton);
