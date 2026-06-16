@@ -73,3 +73,12 @@ crashlytics-build.properties
 .idea
 ExcelParser/dev/querys
 ExcelParser/dev/excels/~*.xlsx
+
+# AI 툴링 산출물 (로컬 전용)
+/.agents/
+/.claude/
+/.codex/
+/.omc/
+/.serena/
+/AGENTS.md
+nul
