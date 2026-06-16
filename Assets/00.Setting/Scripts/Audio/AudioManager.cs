@@ -4,20 +4,15 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using DG.Tweening;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
-using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace Framework
 {
-    public class AudioManager
+    public class AudioManager : IDisposable
     {
         private readonly IEventBus _eventBus;
         private readonly ISettingsManager _settingsManager;
 
-        private readonly Dictionary<string, AudioClip> _clips = new();
-        private readonly Dictionary<string, AsyncOperationHandle<AudioClip>> _handles = new();
-        private readonly HashSet<string> _loading = new();
-        private readonly HashSet<string> _failed = new();
+        private readonly ResourceCache<AudioClip> _clips;
 
         private readonly Queue<AudioSource> _sfxPool = new();
         private readonly Dictionary<AudioSource, float> _activeSfx = new();
@@ -44,10 +39,11 @@ namespace Framework
         public float BgmVolume => _bgmVolume;
         public float SfxVolume => _sfxVolume;
 
-        public AudioManager(IEventBus eventBus, ISettingsManager settingsManager)
+        public AudioManager(IEventBus eventBus, ISettingsManager settingsManager, ResourceManager resources)
         {
             _eventBus = eventBus;
             _settingsManager = settingsManager;
+            _clips = new ResourceCache<AudioClip>(resources);
         }
 
         public void Initialize(Transform root)
@@ -290,13 +286,10 @@ namespace Framework
                 if (src != null) UnityEngine.Object.Destroy(src.gameObject);
             }
 
-            _clips.Clear();
-            foreach (var kvp in _handles)
-                Addressables.Release(kvp.Value);
-            _handles.Clear();
-            _loading.Clear();
-            _failed.Clear();
+            _clips.ReleaseAll();
         }
+
+        public void Dispose() => ReleaseAll();
 
         private AudioSource CreateBgmSource(Transform parent, string name)
         {
@@ -371,64 +364,20 @@ namespace Framework
 
         private async UniTask<AudioClip> LoadClip(string key)
         {
-            if (_clips.TryGetValue(key, out var cached))
-                return cached;
-            if (_failed.Contains(key))
-                return null;
-
-            var gen = _generation;
-            var releaseToken = _releaseCts.Token;
-
-            if (_loading.Contains(key))
-            {
-                try
-                {
-                    await UniTask.WaitUntil(
-                        () => _clips.ContainsKey(key) || _failed.Contains(key) || !_loading.Contains(key),
-                        cancellationToken: releaseToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    return null;
-                }
-                if (gen != _generation) return null;
-                return _clips.TryGetValue(key, out var loaded) ? loaded : null;
-            }
-
-            _loading.Add(key);
-            AsyncOperationHandle<AudioClip> handle = default;
+            // ResourceCache가 키별 단일 핸들 캐시 + single-flight를 담당. 로드 중 ReleaseAll(취소) 시
+            // _releaseCts.Token으로 핸들 즉시 해제 + OCE를 받아 null 반환(재생 진입 차단).
             try
             {
-                handle = Addressables.LoadAssetAsync<AudioClip>(key);
-                var clip = await handle;
-
-                if (gen != _generation)
-                {
-                    Addressables.Release(handle);
-                    return null;
-                }
-
-                if (clip == null)
-                {
-                    _failed.Add(key);
-                    Addressables.Release(handle);
-                    Debug.LogError($"[AudioManager] LoadClip('{key}') returned null.");
-                    return null;
-                }
-                _clips[key] = clip;
-                _handles[key] = handle;
-                return clip;
+                return await _clips.Load(key, _releaseCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                return null;
             }
             catch (Exception e)
             {
-                if (gen == _generation) _failed.Add(key);
-                if (handle.IsValid()) Addressables.Release(handle);
                 Debug.LogError($"[AudioManager] LoadClip('{key}') failed: {e.Message}");
                 return null;
-            }
-            finally
-            {
-                if (gen == _generation) _loading.Remove(key);
             }
         }
     }
