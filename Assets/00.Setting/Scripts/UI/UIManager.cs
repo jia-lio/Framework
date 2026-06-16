@@ -12,7 +12,7 @@ namespace Framework
         private readonly IObjectResolver _resolver;
         private readonly IEventBus _eventBus;
         private readonly ResourceCache<GameObject> _prefabs;
-        private readonly Dictionary<string, GameObject> _cache = new();
+        private readonly Dictionary<string, GameObject> _instances = new();
         private readonly Stack<PopupView> _popupStack = new();
 
         private Transform _uiRoot;
@@ -58,14 +58,14 @@ namespace Framework
 
         private async UniTask<T> OpenInternal<T>(string key, Action<T> setup) where T : PopupView
         {
-            if (!_cache.TryGetValue(key, out var go))
+            if (!_instances.TryGetValue(key, out var go))
             {
                 var prefab = await _prefabs.Load(key);
                 go = UnityEngine.Object.Instantiate(prefab, _uiRoot);
                 go.name = key;
                 go.SetActive(false);
                 _resolver.InjectGameObject(go);
-                _cache[key] = go;
+                _instances[key] = go;
             }
 
             var popup = go.GetComponent<T>();
@@ -139,10 +139,10 @@ namespace Framework
             _isOpening = false;
             _isClosing = false;
 
-            foreach (var kvp in _cache)
+            foreach (var kvp in _instances)
                 if (kvp.Value != null)
                     UnityEngine.Object.Destroy(kvp.Value);
-            _cache.Clear();
+            _instances.Clear();
 
             _prefabs.ReleaseAll();
         }

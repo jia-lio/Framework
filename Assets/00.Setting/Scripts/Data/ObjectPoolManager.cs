@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 using VContainer;
@@ -15,6 +16,7 @@ namespace Framework
         private readonly Dictionary<GameObject, string> _instanceToKey = new();
 
         private Transform _poolRoot;
+        private CancellationTokenSource _cts = new();
 
         public ObjectPoolManager(IObjectResolver resolver, ResourceManager resources)
         {
@@ -27,15 +29,24 @@ namespace Framework
             _poolRoot = root;
         }
 
+        /// <summary>
+        /// 풀을 미리 채운다. 로드 중 <see cref="ReleaseAll"/>(씬 전환 등)가 호출되면
+        /// <see cref="OperationCanceledException"/>을 던진다 — 호출자는 필요 시 catch.
+        /// </summary>
         public async UniTask Preload(string key, int count)
         {
-            var prefab = await _prefabs.Load(key);
+            // 로드 중 ReleaseAll(씬 전환 등) 발생 시 ResourceCache가 핸들을 즉시 해제하고 OCE를 던진다.
+            var prefab = await _prefabs.Load(key, _cts.Token);
 
             var queue = GetOrCreateQueue(key);
             for (var i = 0; i < count; i++)
                 queue.Enqueue(CreateInstance(key, prefab));
         }
 
+        /// <summary>
+        /// 풀에서 인스턴스를 꺼낸다(없으면 로드·생성). 로드 중 <see cref="ReleaseAll"/>(씬 전환 등)가
+        /// 호출되면 <see cref="OperationCanceledException"/>을 던진다 — 호출자는 필요 시 catch.
+        /// </summary>
         public async UniTask<T> Spawn<T>(string key, Transform parent = null) where T : Component
         {
             var queue = GetOrCreateQueue(key);
@@ -54,7 +65,11 @@ namespace Framework
             }
 
             if (go == null)
-                go = CreateInstance(key, await _prefabs.Load(key));
+            {
+                // 로드 중 ReleaseAll(씬 전환 등) 발생 시 ResourceCache가 핸들을 즉시 해제하고 OCE를 던진다 — orphan 인스턴스 방지.
+                var prefab = await _prefabs.Load(key, _cts.Token);
+                go = CreateInstance(key, prefab);
+            }
 
             var component = go.GetComponent<T>();
             if (component == null)
@@ -92,6 +107,11 @@ namespace Framework
 
         public void ReleaseAll()
         {
+            // in-flight Spawn/Preload의 await 재개를 취소 (재사용 위해 새 토큰 발급)
+            _cts.Cancel();
+            _cts.Dispose();
+            _cts = new CancellationTokenSource();
+
             _pools.Clear();
 
             foreach (var kvp in _instanceToKey)

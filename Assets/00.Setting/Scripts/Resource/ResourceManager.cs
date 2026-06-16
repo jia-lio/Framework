@@ -79,13 +79,17 @@ namespace Framework
                            (entry.Handle.IsDone && entry.Handle.Status != AsyncOperationStatus.Succeeded);
             if (faulted)
             {
-                _entries.Remove(key);
-                if (entry.Handle.IsValid()) Addressables.Release(entry.Handle);
+                RemoveAndRelease(key, entry);
                 return;
             }
 
             entry.RefCount--;
             if (entry.RefCount > 0) return;
+            RemoveAndRelease(key, entry);
+        }
+
+        private void RemoveAndRelease(string key, Entry entry)
+        {
             _entries.Remove(key);
             if (entry.Handle.IsValid()) Addressables.Release(entry.Handle);
         }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Cysharp.Threading.Tasks;
 
 namespace Framework
@@ -21,12 +22,20 @@ namespace Framework
             _resources = resources;
         }
 
-        public async UniTask<T> Load(string key)
+        public async UniTask<T> Load(string key, CancellationToken ct = default)
         {
             if (_handles.TryGetValue(key, out var existing))
                 return existing.Asset;
 
             var handle = await _resources.Load<T>(key);
+
+            // await 도중 owner의 ReleaseAll/취소가 발생했으면(이 시점 _handles에는 key 미등록 상태)
+            // 방금 획득한 핸들을 즉시 해제해 refcount 잔존(메모리 retention)을 막고 OCE 전파.
+            if (ct.IsCancellationRequested)
+            {
+                handle.Dispose();
+                ct.ThrowIfCancellationRequested();
+            }
 
             // await 도중 다른 호출이 같은 키를 먼저 등록했으면 중복 핸들 폐기.
             if (_handles.TryGetValue(key, out var raced))
