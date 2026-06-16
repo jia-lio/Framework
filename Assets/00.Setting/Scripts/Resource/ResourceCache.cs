@@ -27,6 +27,9 @@ namespace Framework
             if (_handles.TryGetValue(key, out var existing))
                 return existing.Asset;
 
+            // ct는 의도적으로 내부 Load에 전달하지 않는다 — 로드를 끝까지 완료시켜 유효 entry(refcount=1)를
+            // 만든 뒤 아래에서 handle.Dispose()로 0까지 내려 회수하기 위함. ct를 넘기면 로드가 entry 생성 전
+            // OCE로 중단돼 refcount 회계가 깨진다(취소 시 retention 방지 보장 무효).
             var handle = await _resources.Load<T>(key);
 
             // await 도중 owner의 ReleaseAll/취소가 발생했으면(이 시점 _handles에는 key 미등록 상태)
