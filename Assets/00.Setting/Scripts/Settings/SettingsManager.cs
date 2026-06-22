@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Framework
 {
-    public sealed class SettingsManager : ISettingsManager
+    public sealed class SettingsManager : ISettingsManager, IAppLifecycle
     {
         private readonly SaveManager<SaveData> _saveManager;
         private readonly IEventBus _eventBus;
@@ -56,18 +56,31 @@ namespace Framework
 
         public async UniTask<bool> Save()
         {
-            var data = _saveManager.Data;
-            if (data == null)
+            if (_saveManager.Data == null)
             {
                 Debug.LogWarning("[SettingsManager] Save rejected: SaveData null.");
                 return false;
             }
+            SyncToCache();
+            return await _saveManager.Save();
+        }
+
+        // 라이브 볼륨 필드를 _cachedData에 반영. Save()와 라이프사이클 OnSuspend가 공유.
+        private void SyncToCache()
+        {
+            var data = _saveManager.Data;
+            if (data == null) return;
             data.MasterVolume = _master;
             data.BgmVolume = _bgm;
             data.SfxVolume = _sfx;
             data.HasAudioSettings = true;
-            return await _saveManager.Save();
         }
+
+        // 백그라운드/종료 시 라이브 상태를 _cachedData로 수확 → SaveDataInitializer.OnSuspend의 FlushSync가 디스크에 씀.
+        // (RootScope 등록 순서상 SettingsManager가 SaveDataInitializer보다 먼저 → 수확이 flush보다 선행)
+        public void OnSuspend() => SyncToCache();
+
+        public void OnResume() { }
 
         public void ResetToDefaults()
         {
